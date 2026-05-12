@@ -1,0 +1,20 @@
+workflow: GitFlow/v1
+mode: ContinuousDeployment
+tag-prefix: '[vV]?'
+assembly-versioning-scheme: MajorMinorPatch
+branches:
+  main:
+    label: ''
+    regex: ^master$|^main$
+    increment: Patch
+    is-source-branch-for: []
+    is-release-branch: true
+    prevent-increment:
+      of-merged-branch: true
+ignore:
+  sha: []
+commit-message-incrementing: Enabled
+major-version-bump-message: '\+semver:\s?(breaking|major)'
+minor-version-bump-message: '\+semver:\s?(feature|minor)'
+patch-version-bump-message: '\+semver:\s?(fix|patch)'
+no-bump-message: '\+semver:\s?(none|skip)'
