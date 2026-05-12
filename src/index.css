@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: var(--theme-canvas);
+  --color-surface: var(--theme-surface);
+  --color-surface-2: var(--theme-surface-2);
+  --color-card-bg: var(--theme-card-bg);
+  --color-card-border: var(--theme-card-border);
+  --color-accent: var(--theme-accent);
+  --color-accent-dim: var(--theme-accent-dim);
+  --color-text-primary: var(--theme-text-primary);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-muted: var(--theme-text-muted);
+  --color-divider: var(--theme-divider);
+  --color-added: var(--theme-added);
+  --color-modified: var(--theme-modified);
+  --color-removed: var(--theme-removed);
+  --color-warn: var(--theme-warn);
+  --color-input-bg: var(--theme-input-bg);
+  --color-input-border: var(--theme-input-border);
+  --color-input-text: var(--theme-input-text);
+}
+
+/* ── Catppuccin Mocha (dark, default) ── */
+:root,
+[data-theme="dark"] {
+  --theme-canvas: #1e1e2e;
+  --theme-surface: #313244;
+  --theme-surface-2: #45475a;
+  --theme-card-bg: #313244;
+  --theme-card-border: #45475a;
+  --theme-accent: #cba6f7;
+  --theme-accent-dim: #6c7086;
+  --theme-text-primary: #cdd6f4;
+  --theme-text-secondary: #bac2de;
+  --theme-text-muted: #7f849c;
+  --theme-divider: #45475a;
+  --theme-added: #a6e3a1;
+  --theme-modified: #f9e2af;
+  --theme-removed: #f38ba8;
+  --theme-warn: #f9e2af;
+  --theme-input-bg: #313244;
+  --theme-input-border: #45475a;
+  --theme-input-text: #cdd6f4;
+}
+
+/* ── Catppuccin Latte (light) ── */
+[data-theme="light"] {
+  --theme-canvas: #eff1f5;
+  --theme-surface: #ccd0da;
+  --theme-surface-2: #bcc0cc;
+  --theme-card-bg: #ccd0da;
+  --theme-card-border: #bcc0cc;
+  --theme-accent: #8839ef;
+  --theme-accent-dim: #9ca0b0;
+  --theme-text-primary: #4c4f69;
+  --theme-text-secondary: #5c5f77;
+  --theme-text-muted: #8c8fa1;
+  --theme-divider: #bcc0cc;
+  --theme-added: #40a02b;
+  --theme-modified: #df8e1d;
+  --theme-removed: #d20f39;
+  --theme-warn: #df8e1d;
+  --theme-input-bg: #ccd0da;
+  --theme-input-border: #bcc0cc;
+  --theme-input-text: #4c4f69;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: ui-monospace, "SF Mono", "Menlo", "Cascadia Code", "Consolas", monospace;
+}
+
+input, textarea, select {
+  color: var(--theme-input-text);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--theme-text-secondary);
+  opacity: 1;
+}
+
+/* Subtle Catppuccin glow on cards in dark mode */
+[data-theme="dark"] .glow-card,
+:root:not([data-theme="light"]) .glow-card {
+  box-shadow: 0 0 0 1px var(--theme-card-border), 0 0 4px rgba(203, 166, 247, 0.12);
+}
+
+/* Custom scrollbar */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--theme-card-border);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-accent-dim);
+}
