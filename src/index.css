@@ -21,8 +21,9 @@
   --color-input-text: var(--theme-input-text);
 }
 
-/* ── Catppuccin Mocha (dark, default) ── */
+/* Catppuccin Mocha (dark, default) */
 :root,
+[data-theme="mocha"],
 [data-theme="dark"] {
   --theme-canvas: #1e1e2e;
   --theme-surface: #313244;
@@ -44,7 +45,8 @@
   --theme-input-text: #cdd6f4;
 }
 
-/* ── Catppuccin Latte (light) ── */
+/* Catppuccin Latte (light) */
+[data-theme="latte"],
 [data-theme="light"] {
   --theme-canvas: #eff1f5;
   --theme-surface: #ccd0da;
@@ -66,6 +68,94 @@
   --theme-input-text: #4c4f69;
 }
 
+/* Ayu Dark */
+[data-theme="ayu-dark"] {
+  --theme-canvas: #0f1419;
+  --theme-surface: #14191f;
+  --theme-surface-2: #1f2630;
+  --theme-card-bg: #14191f;
+  --theme-card-border: #253340;
+  --theme-accent: #ffb454;
+  --theme-accent-dim: #5c6773;
+  --theme-text-primary: #bfbdb6;
+  --theme-text-secondary: #98a2b3;
+  --theme-text-muted: #5c6773;
+  --theme-divider: #253340;
+  --theme-added: #aad94c;
+  --theme-modified: #ffb454;
+  --theme-removed: #f07178;
+  --theme-warn: #ff8f40;
+  --theme-input-bg: #14191f;
+  --theme-input-border: #253340;
+  --theme-input-text: #bfbdb6;
+}
+
+/* Gruvbox Dark */
+[data-theme="gruvbox-dark"] {
+  --theme-canvas: #282828;
+  --theme-surface: #32302f;
+  --theme-surface-2: #3c3836;
+  --theme-card-bg: #32302f;
+  --theme-card-border: #504945;
+  --theme-accent: #fabd2f;
+  --theme-accent-dim: #7c6f64;
+  --theme-text-primary: #ebdbb2;
+  --theme-text-secondary: #d5c4a1;
+  --theme-text-muted: #928374;
+  --theme-divider: #504945;
+  --theme-added: #b8bb26;
+  --theme-modified: #fabd2f;
+  --theme-removed: #fb4934;
+  --theme-warn: #fe8019;
+  --theme-input-bg: #32302f;
+  --theme-input-border: #504945;
+  --theme-input-text: #ebdbb2;
+}
+
+/* Nord */
+[data-theme="nord"] {
+  --theme-canvas: #2e3440;
+  --theme-surface: #3b4252;
+  --theme-surface-2: #434c5e;
+  --theme-card-bg: #3b4252;
+  --theme-card-border: #4c566a;
+  --theme-accent: #88c0d0;
+  --theme-accent-dim: #6e7686;
+  --theme-text-primary: #eceff4;
+  --theme-text-secondary: #d8dee9;
+  --theme-text-muted: #7b8494;
+  --theme-divider: #4c566a;
+  --theme-added: #a3be8c;
+  --theme-modified: #ebcb8b;
+  --theme-removed: #bf616a;
+  --theme-warn: #d08770;
+  --theme-input-bg: #3b4252;
+  --theme-input-border: #4c566a;
+  --theme-input-text: #eceff4;
+}
+
+/* Half-Life */
+[data-theme="half-life"] {
+  --theme-canvas: #0a0a0a;
+  --theme-surface: #1a1a1a;
+  --theme-surface-2: #242424;
+  --theme-card-bg: #141414;
+  --theme-card-border: #2a2a2a;
+  --theme-accent: #ff6a00;
+  --theme-accent-dim: #6b6b6b;
+  --theme-text-primary: #d6d6d6;
+  --theme-text-secondary: #a8a8a8;
+  --theme-text-muted: #6b6b6b;
+  --theme-divider: #2a2a2a;
+  --theme-added: #7ad97a;
+  --theme-modified: #ffb347;
+  --theme-removed: #ff4b3a;
+  --theme-warn: #ff8c1a;
+  --theme-input-bg: #141414;
+  --theme-input-border: #2a2a2a;
+  --theme-input-text: #d6d6d6;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
@@ -83,9 +173,12 @@ input::placeholder, textarea::placeholder {
   opacity: 1;
 }
 
-/* Subtle Catppuccin glow on cards in dark mode */
-[data-theme="dark"] .glow-card,
-:root:not([data-theme="light"]) .glow-card {
+/* Subtle accent glow on cards in dark themes */
+.glow-card {
+  box-shadow: 0 0 0 1px var(--theme-card-border), 0 0 4px rgba(0, 0, 0, 0);
+}
+:root:not([data-theme="light"]):not([data-theme="latte"]) .glow-card {
+  box-shadow: 0 0 0 1px var(--theme-card-border), 0 0 4px var(--theme-accent);
   box-shadow: 0 0 0 1px var(--theme-card-border), 0 0 4px rgba(203, 166, 247, 0.12);
 }
 

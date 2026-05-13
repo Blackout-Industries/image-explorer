@@ -1,21 +1,39 @@
 import { useState, useEffect, useCallback } from 'react';
 
-type Theme = 'dark' | 'light';
+export type Theme =
+  | 'mocha'
+  | 'latte'
+  | 'ayu-dark'
+  | 'gruvbox-dark'
+  | 'nord'
+  | 'half-life';
 
 const STORAGE_KEY = 'image-explorer-theme';
+
+const VALID: ReadonlySet<Theme> = new Set<Theme>([
+  'mocha',
+  'latte',
+  'ayu-dark',
+  'gruvbox-dark',
+  'nord',
+  'half-life',
+]);
 
 function getInitialTheme(): Theme {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'light' || stored === 'dark') return stored;
+    if (!stored) return 'mocha';
+    if (stored === 'dark') return 'mocha';
+    if (stored === 'light') return 'latte';
+    if (VALID.has(stored as Theme)) return stored as Theme;
   } catch {
     // localStorage unavailable
   }
-  return 'dark';
+  return 'mocha';
 }
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [theme, setThemeState] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -26,9 +44,24 @@ export function useTheme() {
     }
   }, [theme]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  const setTheme = useCallback((next: Theme) => {
+    setThemeState(next);
   }, []);
 
-  return { theme, toggleTheme } as const;
+  const toggleTheme = useCallback(() => {
+    setThemeState(prev => {
+      const list: Theme[] = [
+        'mocha',
+        'latte',
+        'ayu-dark',
+        'gruvbox-dark',
+        'nord',
+        'half-life',
+      ];
+      const idx = list.indexOf(prev);
+      return list[(idx + 1) % list.length]!;
+    });
+  }, []);
+
+  return { theme, setTheme, toggleTheme } as const;
 }
