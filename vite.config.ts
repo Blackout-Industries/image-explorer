@@ -25,6 +25,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['buffer', 'tar-stream', 'pako', 'events', 'readable-stream', 'process/browser'],
+    include: ['buffer', 'tar-stream', 'pako', 'events', 'readable-stream', 'process/browser', 'fzstd'],
   },
 })

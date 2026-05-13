@@ -99,8 +99,8 @@ User runs `docker save node:20 -o node20.tar` and uploads. Tool shows:
 
 ## Out of scope for v0
 
-- Pulling images directly from a registry by ref (`nginx:1.25`) — needs CORS-bypass backend, ruled out
-- OCI image tarball format (Docker v1.2 only in v0 — most common case)
-- Multi-arch manifest list handling (just pick first manifest)
+- ~~Pulling images directly from a registry by ref (`nginx:1.25`)~~ — implemented via the `image-pull-proxy` companion service (local-only Node proxy).
+- ~~OCI image tarball format~~ — `src/lib/oci-parse.ts` now handles OCI image-layout tarballs alongside Docker v1.2.
+- Multi-arch manifest list handling: the SPA picks the first manifest from a list; the pull proxy picks the requested platform.
 - Signature verification (sigstore/cosign)
 - SBOM extraction from labels

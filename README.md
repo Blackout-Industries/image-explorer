@@ -18,6 +18,13 @@ $ open https://blackout-industries.github.io/image-explorer/
 $ # drop the tar, walk the layers
 ```
 
+Or pull straight from a registry through the companion proxy:
+
+```
+$ docker compose up image-pull-proxy
+$ # in the SPA: type `nginx:1.27`, hit Fetch.
+```
+
 ## What it does
 
 - Three-pane layout: layer list, per-layer file delta, inspector.
@@ -25,6 +32,8 @@ $ # drop the tar, walk the layers
 - Handles whiteouts (`.wh.<name>`) and opaque directory markers (`.wh..wh..opq`).
 - Flags bloat: files added in one layer and removed in a later one (reclaimable bytes).
 - Suggests a distroless or Chainguard base image based on detected distro + runtime.
+- Reads **Docker v1.2** (`docker save`) and **OCI image-layout** tarballs. Gzip and zstd layers both supported.
+- Optional **pull-by-ref** via the local `image-pull-proxy` companion service — Docker Hub, GHCR, Quay, anything OCI.
 - Streaming parser via `File.stream()` + `tar-stream`. Doesn't slurp the whole tarball into memory.
 
 ## Quick start
@@ -35,6 +44,19 @@ docker compose up
 ```
 
 Non-Docker: `npm install && npm run dev`.
+
+### Pull-by-ref proxy
+
+The SPA can fetch images by reference (`nginx:1.27`, `ghcr.io/owner/repo:tag`, etc.) through a tiny local
+proxy. It negotiates anonymous registry auth, fetches the manifest + config + layer blobs, and streams
+an OCI tarball back to the browser.
+
+```bash
+docker compose up image-pull-proxy        # listens on http://localhost:5099
+```
+
+The proxy is local-only — no public hosting. If it isn't running the SPA falls back gracefully and you
+can still drop a `docker save` tarball.
 
 ## Tech
 
@@ -48,10 +70,10 @@ Non-Docker: `npm install && npm run dev`.
 
 ## Limits
 
-- Docker v1.2 tarballs only. No OCI image-tarball format yet.
-- No registry pulls by ref. Needs a CORS-bypass backend; not v0.
-- Multi-arch manifest lists: we pick the first manifest.
+- Multi-arch manifest lists: the SPA picks the first manifest; the pull proxy picks the requested platform (or falls back to `linux/amd64`).
+- The pull proxy buffers each blob fully in memory before forwarding — fine for typical images, less great for multi-GB monsters.
 - No signature / SBOM verification (sigstore, cosign).
+- zstd:chunked layers are decoded as plain zstd (no random-access optimisation).
 
 ## Versioning
 

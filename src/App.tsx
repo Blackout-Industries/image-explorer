@@ -36,6 +36,54 @@ export default function App() {
     }
   }, []);
 
+  const onPullRef = useCallback(async (ref: string, platform: 'amd64' | 'arm64') => {
+    setLoading(true);
+    setError(null);
+    setProgress({
+      phase: 'reading-manifest',
+      message: `Pulling ${ref} via local proxy…`,
+    });
+    const proxyUrl = `http://localhost:5099/pull?image=${encodeURIComponent(ref)}&platform=${encodeURIComponent(`linux/${platform}`)}`;
+    try {
+      const res = await fetch(proxyUrl);
+      if (!res.ok) {
+        let detail = '';
+        try {
+          const body = await res.json();
+          detail = body?.error ?? '';
+        } catch {
+          detail = await res.text().catch(() => '');
+        }
+        throw new Error(
+          `Proxy returned ${res.status}${detail ? ` — ${detail}` : ''}`,
+        );
+      }
+      if (!res.body) throw new Error('Proxy response had no body');
+      // Wrap the streaming response as a File-like for the parser.
+      const tarSource = {
+        stream: () => res.body as ReadableStream<Uint8Array>,
+      };
+      const parsed = await parseDockerImage(tarSource, (p) => setProgress(p));
+      setImage(parsed);
+      setSelectedLayer(parsed.layers.length - 1);
+      setSelectedPath(null);
+    } catch (err) {
+      // Distinguish "proxy unreachable" from registry / parser errors.
+      const msg =
+        err instanceof TypeError
+          ? `Could not reach the image-pull-proxy on http://localhost:5099. ` +
+            `Start it with \`docker compose up image-pull-proxy\`. The tar upload still works.`
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      setError(msg);
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setProgress(null);
+    }
+  }, []);
+
   const reset = () => {
     setImage(null);
     setSelectedLayer(0);
@@ -54,7 +102,13 @@ export default function App() {
         <div className="absolute top-2 right-2 z-10">
           <ThemeToggle />
         </div>
-        <Upload onFile={onFile} loading={loading} progress={progress} error={error} />
+        <Upload
+          onFile={onFile}
+          onPullRef={onPullRef}
+          loading={loading}
+          progress={progress}
+          error={error}
+        />
       </div>
     );
   }
