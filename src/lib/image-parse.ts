@@ -1,27 +1,21 @@
-// Streaming Docker-save tarball parser.
+// Streaming image-tarball parser.
 //
-// Approach:
-// 1. Stream the outer .tar through `tar-stream` (Node-flavored, polyfilled via
-//    Vite `buffer` alias + `global: 'globalThis'`).
-// 2. On the first pass we extract `manifest.json` + the `<config>.json` blob and
-//    cache the *raw bytes* of each layer .tar / .tar.gz blob in memory (one
-//    Uint8Array per layer). Outer tar entries arrive in stream order; we don't
-//    know which entries are layers vs other blobs until we've read the manifest,
-//    so we keep every regular file's bytes keyed by path. This means peak memory
-//    is roughly the *uncompressed-on-disk* outer tar — but each layer is read
-//    in a single pass, no `readAsArrayBuffer` of the whole 500MB tarball into
-//    a single buffer.
-// 3. For each layer in manifest order: gunzip (pako) if .tar.gz, then run a
-//    second tar-stream pass over those bytes and call `applyLayer()`.
+// This module is the format dispatcher. It streams the outer tar once,
+// captures every regular-file entry's bytes in memory, then sniffs whether the
+// archive is:
 //
-// Pure browser — no Node deps at runtime; tar-stream + readable-stream are
-// polyfilled by Vite's `buffer` alias and the `global: globalThis` define.
+//   * Docker v1.2  — has `manifest.json` at the root, layers live in
+//                    per-digest directories (or `blobs/sha256/...`).
+//   * OCI layout   — has `oci-layout` at the root and an `index.json` entry
+//                    pointing at content-addressed blobs.
+//
+// Both paths produce the same `ParsedImage` shape so the UI doesn't care.
+//
+// Pure browser — `tar-stream` + `readable-stream` are polyfilled by Vite's
+// `buffer` alias and the `global: globalThis` define. Optional zstd support
+// for OCI layers comes from `fzstd` (lazy-loaded by oci-parse.ts).
 
-// `tar-stream` exposes the extractor as `extract`. The deep import
-// (`tar-stream/extract`) lacks a `.d.ts` shim, so prefer the package entry.
-import { extract } from 'tar-stream';
 import { inflate, ungzip } from 'pako';
-import { Buffer } from 'buffer';
 import type {
   HistoryEntry,
   Layer,
@@ -32,12 +26,14 @@ import type {
 import { applyLayer, finalizeFilesystem, type FsState } from './layer-apply';
 import { detectBloat } from './bloat-detect';
 import { detectBaseImage, suggestDistroless } from './base-image-detect';
-
-// Expose Buffer globally for tar-stream (which does `new Buffer(...)` via
-// readable-stream internals).
-if (typeof (globalThis as { Buffer?: unknown }).Buffer === 'undefined') {
-  (globalThis as { Buffer: typeof Buffer }).Buffer = Buffer;
-}
+import { cleanCommand } from './image-parse-util';
+import {
+  streamTar,
+  bytesAsStream,
+  type CapturedEntry,
+  type TarEntryHeader,
+} from './tar-stream-util';
+import { isOciLayout, parseOciImage } from './oci-parse';
 
 interface DockerManifestEntry {
   Config: string;
@@ -51,103 +47,7 @@ interface ImageConfig {
   rootfs?: { type: string; diff_ids: string[] };
 }
 
-interface TarEntryHeader {
-  name: string;
-  size?: number;
-  type?: string;
-  mode?: number;
-  linkname?: string;
-}
-
-interface CapturedEntry {
-  header: TarEntryHeader;
-  data: Uint8Array;
-}
-
 const td = new TextDecoder();
-
-/**
- * Stream a Web ReadableStream (from `File.stream()`) into a tar-stream extractor.
- * `onEntry` is invoked with the *concatenated* entry bytes — tar-stream gives
- * us a Node readable per entry, so we read until end before resolving.
- */
-async function streamTar(
-  stream: ReadableStream<Uint8Array>,
-  onEntry: (e: CapturedEntry) => Promise<void> | void,
-): Promise<void> {
-  const ex = extract();
-
-  // tar-stream emits 'entry' events; pipe stream bytes into ex via .write().
-  const done = new Promise<void>((resolve, reject) => {
-    ex.on(
-      'entry',
-      (
-        header: TarEntryHeader,
-        entryStream: NodeJS.ReadableStream,
-        next: (err?: unknown) => void,
-      ) => {
-        const chunks: Uint8Array[] = [];
-        entryStream.on('data', (c: Uint8Array | Buffer) => {
-          // tar-stream gives Buffer; ensure plain Uint8Array.
-          chunks.push(c instanceof Uint8Array ? c : new Uint8Array(c));
-        });
-        entryStream.on('end', () => {
-          const data = concat(chunks);
-          Promise.resolve(onEntry({ header, data }))
-            .then(() => next())
-            .catch((err) => {
-              next(err);
-              reject(err);
-            });
-        });
-        entryStream.on('error', reject);
-        entryStream.resume();
-      },
-    );
-    ex.on('finish', () => resolve());
-    ex.on('error', reject);
-  });
-
-  const reader = stream.getReader();
-  try {
-    while (true) {
-      const { value, done: rdDone } = await reader.read();
-      if (rdDone) break;
-      if (value) {
-        // tar-stream's write returns false if backpressured; we ignore here for
-        // simplicity (Node-style 'drain' would be nicer but the polyfill in
-        // browser buffers fine for typical image sizes).
-        ex.write(Buffer.from(value));
-      }
-    }
-    ex.end();
-  } finally {
-    reader.releaseLock();
-  }
-
-  await done;
-}
-
-function concat(chunks: Uint8Array[]): Uint8Array {
-  let total = 0;
-  for (const c of chunks) total += c.byteLength;
-  const out = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) {
-    out.set(c, off);
-    off += c.byteLength;
-  }
-  return out;
-}
-
-/** Strip Docker's "/bin/sh -c #(nop) " noise from a history command. */
-export function cleanCommand(cmd: string | undefined): string {
-  if (!cmd) return '';
-  return cmd
-    .replace(/^\/bin\/sh -c #\(nop\)\s*/, '')
-    .replace(/^\/bin\/sh -c\s*/, 'RUN ')
-    .trim();
-}
 
 function shortDigest(tarPath: string): string {
   // tarPath examples: "blobs/sha256/abc123...", "abc123.../layer.tar"
@@ -155,8 +55,15 @@ function shortDigest(tarPath: string): string {
   return m && m[1] ? m[1].slice(0, 12) : tarPath.slice(0, 12);
 }
 
+// Re-export so existing callers / tests that imported it from here keep working.
+export { cleanCommand };
+
+/**
+ * Parse a Docker v1.2 or OCI image tarball into a `ParsedImage`. The format
+ * is auto-detected from the outer tar's root entries.
+ */
 export async function parseDockerImage(
-  file: File,
+  file: File | Blob | { stream: () => ReadableStream<Uint8Array> },
   onProgress?: (p: ParseProgress) => void,
 ): Promise<ParsedImage> {
   onProgress?.({ phase: 'reading-manifest', message: 'Reading outer tarball' });
@@ -164,16 +71,35 @@ export async function parseDockerImage(
   // Capture all regular-file entries from the outer tar.
   const outerEntries = new Map<string, CapturedEntry>();
   await streamTar(file.stream() as ReadableStream<Uint8Array>, (e) => {
-    // Only keep regular files / contiguous files — skip dirs, longlink, etc.
     const t = e.header.type;
     if (t === undefined || t === 'file' || t === 'contiguous-file' || t === '0') {
-      // Normalize leading "./"
       const name = e.header.name.replace(/^\.\//, '');
       outerEntries.set(name, { ...e, header: { ...e.header, name } });
     }
   });
 
-  // ── manifest.json ──
+  // ── Dispatch ──
+  if (isOciLayout(outerEntries)) {
+    return parseOciImage(outerEntries, onProgress);
+  }
+  if (outerEntries.has('manifest.json')) {
+    return parseDockerV1_2(outerEntries, onProgress);
+  }
+  throw new Error(
+    'Unrecognized tarball — expected either `manifest.json` (Docker v1.2 `docker save`) ' +
+      'or `oci-layout` (OCI image layout) at the root.',
+  );
+}
+
+/**
+ * Parse a Docker v1.2 (`docker save`) tarball given a fully captured outer
+ * entry map. Pulled out of `parseDockerImage` so the OCI dispatcher path can
+ * share the outer-tar streaming pass.
+ */
+async function parseDockerV1_2(
+  outerEntries: Map<string, CapturedEntry>,
+  onProgress?: (p: ParseProgress) => void,
+): Promise<ParsedImage> {
   const manifestEntry = outerEntries.get('manifest.json');
   if (!manifestEntry) {
     throw new Error(
@@ -263,23 +189,20 @@ export async function parseDockerImage(
   };
 }
 
+interface LayerTarEntryInfo {
+  header: TarEntryHeader;
+  size: number;
+}
+
 /** Run tar-stream over already-decompressed layer bytes and apply to fs. */
 async function parseLayerTar(
   bytes: Uint8Array,
   layerIndex: number,
   fs: FsState,
 ) {
-  // Build a ReadableStream from the bytes so we can reuse `streamTar`.
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(bytes);
-      controller.close();
-    },
-  });
+  const entries: LayerTarEntryInfo[] = [];
 
-  const entries: { header: TarEntryHeader; size: number }[] = [];
-
-  await streamTar(stream, (e) => {
+  await streamTar(bytesAsStream(bytes), (e) => {
     entries.push({ header: e.header, size: e.data.byteLength });
   });
 

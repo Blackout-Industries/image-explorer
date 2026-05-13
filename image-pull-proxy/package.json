@@ -1,0 +1,17 @@
+{
+  "name": "image-pull-proxy",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Local-only registry proxy that streams an OCI image-layout tarball to the image-explorer SPA. Runs at http://localhost:5099.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "tar-stream": "^3.1.7",
+    "undici": "^6.21.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
