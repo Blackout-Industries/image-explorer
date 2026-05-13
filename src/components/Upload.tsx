@@ -5,6 +5,7 @@ import {
   Terminal,
   Cloud,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import type { ParseProgress } from '@/types/image';
 
@@ -19,6 +20,15 @@ interface Props {
 }
 
 const DEFAULT_PROXY = 'http://localhost:5099';
+
+// Pull-by-ref hits a local Node proxy at http://localhost:5099. That can't
+// exist on the GitHub Pages deployment (no backend reachable from a public
+// host), so we freeze the controls there with a clear notice. Detection is
+// host-based — only `*.github.io` hides the affordance; any other host (incl.
+// localhost, file://, dev preview) keeps it usable.
+const isFrozenHost =
+  typeof window !== 'undefined' &&
+  /\.github\.io$/i.test(window.location.hostname);
 
 export function Upload({ onFile, onPullRef, loading, progress, error }: Props) {
   const [dragOver, setDragOver] = useState(false);
@@ -84,10 +94,19 @@ export function Upload({ onFile, onPullRef, loading, progress, error }: Props) {
         </button>
 
         {/* ── Pull-by-ref ── */}
-        <div className="mt-8 text-left bg-canvas border border-divider rounded-md p-4">
+        <div
+          className={
+            'mt-8 text-left bg-canvas border border-divider rounded-md p-4' +
+            (isFrozenHost ? ' opacity-70' : '')
+          }
+        >
           <div className="flex items-center gap-2 text-text-secondary mb-3 text-sm">
-            <Cloud size={14} />
-            <span>Or pull by image ref (via local proxy on {DEFAULT_PROXY})</span>
+            {isFrozenHost ? <Lock size={14} /> : <Cloud size={14} />}
+            <span>
+              {isFrozenHost
+                ? 'pull-by-ref is local-only — run the app locally to enable'
+                : `or pull by image ref (via local proxy on ${DEFAULT_PROXY})`}
+            </span>
           </div>
           <div className="flex flex-wrap gap-2">
             <input
@@ -97,15 +116,19 @@ export function Upload({ onFile, onPullRef, loading, progress, error }: Props) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') submitRef();
               }}
-              placeholder="nginx:1.27  •  ghcr.io/owner/repo:tag  •  quay.io/owner/repo:tag"
-              disabled={loading}
-              className="flex-1 min-w-0 px-3 py-2 rounded-md bg-input-bg border border-input-border text-input-text text-sm font-mono focus:outline-none focus:border-accent disabled:opacity-50"
+              placeholder={
+                isFrozenHost
+                  ? 'disabled on github pages'
+                  : 'nginx:1.27  •  ghcr.io/owner/repo:tag  •  quay.io/owner/repo:tag'
+              }
+              disabled={loading || isFrozenHost}
+              className="flex-1 min-w-0 px-3 py-2 rounded-md bg-input-bg border border-input-border text-input-text text-sm font-mono focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <select
               value={platform}
               onChange={(e) => setPlatform(e.target.value as 'amd64' | 'arm64')}
-              disabled={loading}
-              className="px-2 py-2 rounded-md bg-input-bg border border-input-border text-input-text text-sm font-mono focus:outline-none focus:border-accent disabled:opacity-50"
+              disabled={loading || isFrozenHost}
+              className="px-2 py-2 rounded-md bg-input-bg border border-input-border text-input-text text-sm font-mono focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
               title="Platform architecture"
             >
               <option value="amd64">amd64</option>
@@ -113,15 +136,30 @@ export function Upload({ onFile, onPullRef, loading, progress, error }: Props) {
             </select>
             <button
               onClick={submitRef}
-              disabled={loading || !imageRef.trim()}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-surface-2 hover:bg-card-bg border border-accent-dim text-accent font-semibold text-sm transition-colors disabled:opacity-50"
+              disabled={loading || isFrozenHost || !imageRef.trim()}
+              title={
+                isFrozenHost
+                  ? 'pull-by-ref needs the local proxy at :5099'
+                  : 'fetch'
+              }
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-surface-2 hover:bg-card-bg border border-accent-dim text-accent font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-surface-2"
             >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <Cloud size={16} />}
+              {loading ? <Loader2 size={16} className="animate-spin" /> : isFrozenHost ? <Lock size={16} /> : <Cloud size={16} />}
               Fetch
             </button>
           </div>
           <p className="mt-2 text-xs text-text-muted">
-            Needs <code className="text-accent">docker compose up image-pull-proxy</code> running locally.
+            {isFrozenHost ? (
+              <>
+                clone <code className="text-accent">Blackout-Industries/image-explorer</code>{' '}
+                and run <code className="text-accent">docker compose up image-pull-proxy image-explorer</code>{' '}
+                to use this. tar upload above still works on github pages.
+              </>
+            ) : (
+              <>
+                needs <code className="text-accent">docker compose up image-pull-proxy</code> running locally.
+              </>
+            )}
           </p>
         </div>
 
